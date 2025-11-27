@@ -8,7 +8,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Installer les dépendances
-RUN npm install
+RUN npm install -g npm@11.6.4
+
 
 # Copier le reste des fichiers
 COPY . .
