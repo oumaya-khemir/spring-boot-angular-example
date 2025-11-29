@@ -1,0 +1,39 @@
+---
+- name: Installer Docker
+  hosts: localhost
+  become: yes
+
+  tasks:
+    - name: Installer les packages nécessaires
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+        update_cache: yes
+
+    - name: Ajouter la clé GPG de Docker
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Ajouter le repo Docker
+      apt_repository:
+        repo: "deb https://download.docker.com/linux/ubuntu focal stable"
+        state: present
+
+    - name: Installer Docker CE
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Activer et démarrer Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
