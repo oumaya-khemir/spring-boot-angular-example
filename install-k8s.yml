@@ -1,0 +1,61 @@
+---
+- hosts: kubernetes
+  become: yes
+  tasks:
+
+    - name: Install dependencies
+    apt:
+      name:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+      state: present
+      update_cache: yes
+
+    - name: Add Kubernetes GPG key
+      shell: curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+
+    - name: Add Kubernetes repository
+      apt_repository:
+        repo: "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+
+    - name: Install Kubernetes components
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: yes
+
+- hosts: k8s_master
+  become: yes
+  tasks:
+
+    - name: Initialize Kubernetes master
+      shell: kubeadm init --pod-network-cidr=10.244.0.0/16
+      args:
+        creates: /etc/kubernetes/admin.conf
+
+    - name: Create kube config for user
+      shell: |
+        mkdir -p $HOME/.kube
+        cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+        chown $(id -u):$(id -g) $HOME/.kube/config
+
+    - name: Install Flannel network
+      shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+
+    - name: Generate join command
+      shell: kubeadm token create --print-join-command
+      register: join_command
+
+    - set_fact:
+        worker_join: "{{ join_command.stdout }}"
+
+- hosts: k8s_workers
+  become: yes
+  tasks:
+
+    - name: Join worker nodes
+      shell: "{{ hostvars['master'].worker_join }}"
