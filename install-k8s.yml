@@ -1,23 +1,26 @@
 ---
-- hosts: kubernetes
+- hosts: all
   become: yes
   tasks:
-
     - name: Install dependencies
-    apt:
-      name:
-        - apt-transport-https
-        - ca-certificates
-        - curl
-      state: present
-      update_cache: yes
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        update_cache: yes
 
     - name: Add Kubernetes GPG key
-      shell: curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+      apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
 
     - name: Add Kubernetes repository
       apt_repository:
         repo: "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+        state: present
 
     - name: Install Kubernetes components
       apt:
@@ -28,34 +31,51 @@
         state: present
         update_cache: yes
 
+    - name: Hold Kubernetes packages at current version
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: yes
+        allow_downgrade: yes
+        mark: hold
+
 - hosts: k8s_master
   become: yes
   tasks:
-
     - name: Initialize Kubernetes master
       shell: kubeadm init --pod-network-cidr=10.244.0.0/16
       args:
         creates: /etc/kubernetes/admin.conf
+      register: kubeadm_init
 
     - name: Create kube config for user
       shell: |
         mkdir -p $HOME/.kube
         cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
         chown $(id -u):$(id -g) $HOME/.kube/config
+      environment:
+        HOME: "/home/{{ ansible_user }}"
 
     - name: Install Flannel network
       shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+      environment:
+        KUBECONFIG: "/etc/kubernetes/admin.conf"
 
     - name: Generate join command
       shell: kubeadm token create --print-join-command
       register: join_command
 
-    - set_fact:
+    - name: Set join command fact
+      set_fact:
         worker_join: "{{ join_command.stdout }}"
 
 - hosts: k8s_workers
   become: yes
+  vars:
+    master_host: "{{ hostvars['k8s_master'].ansible_host }}"
   tasks:
-
     - name: Join worker nodes
-      shell: "{{ hostvars['master'].worker_join }}"
+      shell: "{{ hostvars['k8s_master']['worker_join'] }}"
