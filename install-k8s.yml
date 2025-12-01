@@ -131,8 +131,6 @@
 
 - hosts: k8s_workers
   become: yes
-  vars:
-    master_host: "{{ hostvars['k8s_master'].ansible_host }}"
   tasks:
     - name: Join worker nodes
-      shell: "{{ hostvars['master']['worker_join'] }}"
+      shell: "{{ hostvars[groups['k8s_master'][0]]['worker_join'] }}"
