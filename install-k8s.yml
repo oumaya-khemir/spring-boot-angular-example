@@ -135,4 +135,4 @@
     master_host: "{{ hostvars['k8s_master'].ansible_host }}"
   tasks:
     - name: Join worker nodes
-      shell: "{{ hostvars['k8s_master']['worker_join'] }}"
+      shell: "{{ hostvars['master']['worker_join'] }}"
