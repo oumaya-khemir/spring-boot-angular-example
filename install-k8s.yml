@@ -2,6 +2,57 @@
 - hosts: all
   become: yes
   tasks:
+  # --- Désactiver swap ---
+    - name: Disable swap
+      command: swapoff -a
+
+    - name: Remove swap entry from fstab
+      replace:
+        path: /etc/fstab
+        regexp: '(\s+)swap(\s+)'
+        replace: '#\1swap\2'
+
+    # --- Installer containerd ---
+    - name: Install required dependencies
+      apt:
+        name:
+          - curl
+          - gnupg
+          - software-properties-common
+        update_cache: yes
+        state: present
+
+    - name: Install containerd
+      apt:
+        name: containerd
+        state: present
+
+    - name: Create containerd config directory
+      file:
+        path: /etc/containerd
+        state: directory
+
+    - name: Generate default containerd config
+      command: containerd config default
+      register: containerd_config
+
+    - name: Save containerd config
+      copy:
+        dest: /etc/containerd/config.toml
+        content: "{{ containerd_config.stdout }}"
+
+    - name: Enable SystemdCgroup in containerd
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+
+    - name: Restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+        enabled: yes
+
     - name: Install dependencies
       apt:
         name:
