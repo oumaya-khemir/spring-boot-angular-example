@@ -103,10 +103,10 @@
   become: yes
   tasks:
     - name: Initialize Kubernetes master
-      shell: kubeadm init --pod-network-cidr=10.244.0.0/16
+      command: kubeadm init --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=NumCPU
+      register: init_result
       args:
         creates: /etc/kubernetes/admin.conf
-      register: kubeadm_init
 
     - name: Create kube config for user
       shell: |
