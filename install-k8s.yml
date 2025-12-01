@@ -3,25 +3,31 @@
   become: yes
   tasks:
     - name: Install dependencies
-      apt:
+    - apt:
         name:
           - apt-transport-https
           - ca-certificates
           - curl
-          - gnupg
+          - gpg
         state: present
         update_cache: yes
 
-    - name: Add Kubernetes repo key
-      ansible.builtin.apt_key:
-        url: https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key
-        state: present
+    - name: Add Kubernetes GPG key
+      shell: |
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key \
+        | gpg --dearmor -o /usr/share/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/kubernetes-apt-keyring.gpg
 
-    - name: Add Kubernetes repository
-      ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /"
-        state: present
-        filename: kubernetes
+    - name: Add Kubernetes APT repository
+      copy:
+        dest: /etc/apt/sources.list.d/kubernetes.list
+        content: |
+          deb [signed-by=/usr/share/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
 
     - name: Install Kubernetes components
       apt:
@@ -32,7 +38,7 @@
         state: present
         update_cache: yes
 
-    - name: Hold Kubernetes packages at current version
+    - name: Hold Kubernetes packages
       apt:
         name:
           - kubelet
@@ -40,8 +46,7 @@
           - kubectl
         state: present
         update_cache: yes
-        allow_downgrade: yes
-        mark: hold
+        allow_unauthenticated: yes
 
 - hosts: k8s_master
   become: yes
