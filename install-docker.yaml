@@ -1,6 +1,6 @@
 ---
 - name: Installer Docker
-  hosts: all
+  hosts: k8s_workers
   become: yes
 
   tasks:
