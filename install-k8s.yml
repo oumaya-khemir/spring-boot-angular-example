@@ -11,6 +11,18 @@
         path: /etc/fstab
         regexp: '(\s+)swap(\s+)'
         replace: '#\1swap\2'
+    - name: Enable ip_forward temporary
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: "1"
+        state: present
+        reload: yes
+
+    - name: Enable ip_forward permanently
+      lineinfile:
+        path: /etc/sysctl.conf
+        regexp: '^net.ipv4.ip_forward'
+        line: 'net.ipv4.ip_forward=1'
 
     # --- Installer containerd ---
     - name: Install required dependencies
@@ -103,7 +115,7 @@
   become: yes
   tasks:
     - name: Initialize Kubernetes master
-      command: kubeadm init --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=NumCPU
+      command: kubeadm init --apiserver-advertise-address=192.168.56.103 --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=NumCPU
       register: init_result
       args:
         creates: /etc/kubernetes/admin.conf
@@ -134,7 +146,26 @@
 - hosts: k8s_workers
   become: yes
   tasks:
+    - name: Wait for master API to be ready
+      wait_for:
+        host: 192.168.56.103
+        port: 6443
+        delay: 10
+        timeout: 300
     - name: Join worker nodes
       shell: "{{ hostvars[groups['k8s_master'][0]]['worker_join'] }}"
       args:
         executable: /bin/bash
+- hosts: k8s_master
+  become: yes
+  tasks:
+    
+    - name: Check cluster nodes
+      command: kubectl get nodes
+      register: nodes
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Display nodes
+      debug:
+        var: nodes.stdout
