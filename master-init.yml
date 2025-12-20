@@ -1,0 +1,40 @@
+- hosts: master
+  become: yes
+  tasks:
+
+    - name: Reset Kubernetes cluster if exists
+      command: kubeadm reset -f
+
+    - name: Cleanup Kubernetes directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes
+        - /etc/cni/net.d
+
+    - name: Enable and start kubelet
+      systemd:
+        name: kubelet
+        enabled: yes
+        state: started
+
+    - name: Initialize cluster
+      command: kubeadm init --apiserver-advertise-address=192.168.56.107 --pod-network-cidr=10.244.0.0/16 --ignore-preflight-errors=NumCPU
+      register: kubeadm_output
+
+    - name: Configure kubectl for root
+      shell: |
+        mkdir -p $HOME/.kube
+        cp /etc/kubernetes/admin.conf $HOME/.kube/config
+        chown $(id -u):$(id -g) $HOME/.kube/config
+
+    - name: Install Flannel
+      shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+
+    - name: Save join command
+      shell: kubeadm token create --print-join-command
+      register: join_cmd
+
+    - set_fact:
+        worker_join_cmd: "{{ join_cmd.stdout }}"
